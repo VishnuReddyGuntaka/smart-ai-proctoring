@@ -1,0 +1,14 @@
+# Model files (too large for GitHub)
+model/model.weights
+model/X.txt.npy
+model/Y.txt.npy
+model/cnnmodel_weights.h5
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
