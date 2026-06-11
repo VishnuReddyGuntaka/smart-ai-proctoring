@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart AI Proctoring System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-detection"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: white;
+        }
+        .navbar {
+            background: #16213e;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .navbar h1 {
+            color: #e94560;
+            font-size: 20px;
+        }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 90vh;
+        }
+        .login-box {
+            background: #16213e;
+            padding: 40px;
+            border-radius: 10px;
+            width: 350px;
+            text-align: center;
+        }
+        .login-box h2 {
+            color: #e94560;
+            margin-bottom: 20px;
+        }
+        .login-box input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #e94560;
+            background: #1a1a2e;
+            color: white;
+        }
+        .login-box button {
+            width: 100%;
+            padding: 10px;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        .login-box button:hover {
+            background: #c73652;
+        }
+        .exam-container {
+            display: none;
+            padding: 20px;
+        }
+        .detection-area {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .webcam-box {
+            position: relative;
+            width: 640px;
+        }
+        #video {
+            width: 640px;
+            height: 480px;
+            border-radius: 10px;
+            border: 2px solid #e94560;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 640px;
+            height: 480px;
+        }
+        .info-box {
+            flex: 1;
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .info-box h3 {
+            color: #e94560;
+            margin-bottom: 15px;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            margin: 5px 0;
+            background: #1a1a2e;
+            border-radius: 5px;
+        }
+        .status-ok { color: #00ff00; }
+        .status-warning { color: #ff0000; }
+        .violations-box {
+            margin-top: 20px;
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .violation-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #e94560;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        .alert-popup {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #e94560;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .stats-bar {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            flex: 1;
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-card h2 {
+            color: #e94560;
+            font-size: 30px;
+        }
+        .end-btn {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .report-container {
+            display: none;
+            padding: 20px;
+        }
+        .report-box {
+            background: #16213e;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .report-box h2 {
+            color: #e94560;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .report-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <h1>🎓 Smart AI Proctoring System</h1>
+    <span id="student-name-display"></span>
+</nav>
+
+<!-- Alert Popup -->
+<div class="alert-popup" id="alert-popup">
+    ⚠️ <span id="alert-message"></span>
+</div>
+
+<!-- Login Page -->
+<div class="login-container" id="login-page">
+    <div class="login-box">
+        <h2>🔐 Student Login</h2>
+        <input type="text" id="student-name" placeholder="Enter Your Name" />
+        <input type="text" id="student-id" placeholder="Enter Student ID" />
+        <input type="email" id="student-email" placeholder="Enter Email" />
+        <button onclick="startExam()">Start Exam</button>
+    </div>
+</div>
+
+<!-- Exam Page -->
+<div class="exam-container" id="exam-page">
+    <div class="stats-bar">
+        <div class="stat-card">
+            <h2 id="violation-count">0</h2>
+            <p>Total Violations</p>
+        </div>
+        <div class="stat-card">
+            <h2 id="face-count">0</h2>
+            <p>Faces Detected</p>
+        </div>
+        <div class="stat-card">
+            <h2 id="emotion-display">-</h2>
+            <p>Current Emotion</p>
+        </div>
+        <div class="stat-card">
+            <h2 id="pose-display">-</h2>
+            <p>Head Pose</p>
+        </div>
+    </div>
+
+    <div class="detection-area">
+        <div class="webcam-box">
+            <video id="video" autoplay muted></video>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="info-box">
+            <h3>📊 Live Status</h3>
+            <div class="status-item">
+                <span>Face Detected</span>
+                <span id="face-status" class="status-ok">✅ Yes</span>
+            </div>
+            <div class="status-item">
+                <span>Multiple Persons</span>
+                <span id="multi-status" class="status-ok">✅ No</span>
+            </div>
+            <div class="status-item">
+                <span>Head Pose</span>
+                <span id="pose-status" class="status-ok">✅ Forward</span>
+            </div>
+            <div class="status-item">
+                <span>Emotion</span>
+                <span id="emotion-status" class="status-ok">😐 Neutral</span>
+            </div>
+
+            <div class="violations-box">
+                <h3>⚠️ Violations Log</h3>
+                <div id="violations-list"></div>
+            </div>
+
+            <button class="end-btn" onclick="endExam()">
+                End Exam & Generate Report
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Report Page -->
+<div class="report-container" id="report-page">
+    <div class="report-box">
+        <h2>📋 Exam Report</h2>
+        <div id="report-content"></div>
+        <button class="end-btn" 
+            style="width:100%;margin-top:20px" 
+            onclick="downloadReport()">
+            Download Report
+        </button>
+    </div>
+</div>
+
+<script>
+    let violationCount = 0;
+    let violations = [];
+    let studentInfo = {};
+    let model = null;
+    let detectionInterval = null;
+
+    async function startExam() {
+        const name = document.getElementById('student-name').value;
+        const id = document.getElementById('student-id').value;
+        const email = document.getElementById('student-email').value;
+
+        if (!name || !id || !email) {
+            alert('Please fill all fields!');
+            return;
+        }
+
+        studentInfo = { name, id, email, 
+            startTime: new Date().toLocaleTimeString() };
+        document.getElementById('student-name-display').textContent = 
+            '👤 ' + name;
+
+        document.getElementById('login-page').style.display = 'none';
+        document.getElementById('exam-page').style.display = 'block';
+
+        await setupWebcam();
+        await loadModel();
+        startDetection();
+    }
+
+    async function setupWebcam() {
+        const video = document.getElementById('video');
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: true 
+        });
+        video.srcObject = stream;
+    }
+
+    async function loadModel() {
+        model = await faceDetection.createDetector(
+            faceDetection.SupportedModels.MediaPipeFaceDetector,
+            { runtime: 'tfjs' }
+        );
+    }
+
+    function startDetection() {
+        detectionInterval = setInterval(async () => {
+            await detectFaces();
+        }, 1000);
+    }
+
+    async function detectFaces() {
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!model) return;
+
+        try {
+            const faces = await model.estimateFaces(video);
+            
+            // Face count
+            document.getElementById('face-count').textContent = 
+                faces.length;
+
+            if (faces.length === 0) {
+                updateStatus('face-status', '❌ No', 'warning');
+                logViolation('Face Not Detected');
+            } else {
+                updateStatus('face-status', '✅ Yes', 'ok');
+            }
+
+            if (faces.length > 1) {
+                updateStatus('multi-status', '❌ Yes', 'warning');
+                logViolation('Multiple Persons Detected');
+            } else {
+                updateStatus('multi-status', '✅ No', 'ok');
+            }
+
+            // Draw boxes
+            faces.forEach(face => {
+                const box = face.box;
+                ctx.strokeStyle = '#e94560';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(box.xMin, box.yMin, 
+                    box.width, box.height);
+
+                // Head pose (simple)
+                const centerX = box.xMin + box.width / 2;
+                const videoCenter = canvas.width / 2;
+                let pose = 'Forward';
+                if (centerX < videoCenter - 50) pose = 'Left';
+                else if (centerX > videoCenter + 50) pose = 'Right';
+
+                document.getElementById('pose-display').textContent = 
+                    pose;
+                document.getElementById('pose-status').textContent = 
+                    pose === 'Forward' ? '✅ Forward' : '⚠️ ' + pose;
+
+                if (pose !== 'Forward') {
+                    logViolation('Head Turned ' + pose);
+                }
+
+                ctx.fillStyle = '#e94560';
+                ctx.font = '14px Arial';
+                ctx.fillText('Person', box.xMin, box.yMin - 5);
+            });
+
+            // Random emotion simulation
+            const emotions = ['Neutral', 'Happy', 
+                'Angry', 'Sad', 'Surprised'];
+            const emotion = emotions[
+                Math.floor(Math.random() * emotions.length)
+            ];
+            document.getElementById('emotion-display').textContent = 
+                emotion;
+            document.getElementById('emotion-status').textContent = 
+                emotion;
+
+        } catch (err) {
+            console.log('Detection error:', err);
+        }
+    }
+
+    function updateStatus(id, text, type) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = 'status-' + type;
+    }
+
+    function logViolation(type) {
+        const time = new Date().toLocaleTimeString();
+        violations.push({ type, time });
+        violationCount++;
+        
+        document.getElementById('violation-count').textContent = 
+            violationCount;
+
+        const list = document.getElementById('violations-list');
+        const item = document.createElement('div');
+        item.className = 'violation-item';
+        item.textContent = `⚠️ ${type} - ${time}`;
+        list.prepend(item);
+
+        showAlert(type);
+    }
+
+    function showAlert(message) {
+        const popup = document.getElementById('alert-popup');
+        document.getElementById('alert-message').textContent = message;
+        popup.style.display = 'block';
+        setTimeout(() => { popup.style.display = 'none'; }, 3000);
+    }
+
+    function endExam() {
+        clearInterval(detectionInterval);
+        document.getElementById('exam-page').style.display = 'none';
+        document.getElementById('report-page').style.display = 'block';
+        generateReport();
+    }
+
+    function generateReport() {
+        const endTime = new Date().toLocaleTimeString();
+        let html = `
+            <div class="report-item">
+                <span>Student Name</span>
+                <span>${studentInfo.name}</span>
+            </div>
+            <div class="report-item">
+                <span>Student ID</span>
+                <span>${studentInfo.id}</span>
+            </div>
+            <div class="report-item">
+                <span>Start Time</span>
+                <span>${studentInfo.startTime}</span>
+            </div>
+            <div class="report-item">
+                <span>End Time</span>
+                <span>${endTime}</span>
+            </div>
+            <div class="report-item">
+                <span>Total Violations</span>
+                <span style="color:#e94560">${violationCount}</span>
+            </div>
+            <br>
+            <h3 style="color:#e94560">Violation Details</h3>
+        `;
+        violations.forEach(v => {
+            html += `
+                <div class="report-item">
+                    <span>${v.type}</span>
+                    <span>${v.time}</span>
+                </div>
+            `;
+        });
+        document.getElementById('report-content').innerHTML = html;
+    }
+
+    function downloadReport() {
+        const content = `
+SMART AI PROCTORING SYSTEM - EXAM REPORT
+==========================================
+Student Name  : ${studentInfo.name}
+Student ID    : ${studentInfo.id}
+Email         : ${studentInfo.email}
+Start Time    : ${studentInfo.startTime}
+End Time      : ${new Date().toLocaleTimeString()}
+Total Violations: ${violationCount}
+==========================================
+VIOLATION DETAILS:
+${violations.map(v => `- ${v.type} at ${v.time}`).join('\n')}
+        `;
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `report_${studentInfo.name}.txt`;
+        a.click();
+    }
+</script>
+</body>
+              </html>
